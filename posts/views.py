@@ -93,8 +93,8 @@ def post_list(request):
             "content" : new_post.content,
             "status" : new_post.status,
             "writer" : new_post.writer.username,
-            "created time" : new_post.created_at,
-            "updated time" : new_post.updated_at
+            "created_time" : new_post.created_at,
+            "updated_time" : new_post.updated_at
         }
 
         return JsonResponse({
@@ -103,31 +103,44 @@ def post_list(request):
             'data' : new_post_json
         })
     
-    # 게시글 전체 조회
-    if request.method == "GET":
-        post_all = Post.objects.all()
+# 게시글 전체조회 GET, 게시글을 카테고리별로 GET하는 뷰 로직
+@require_http_methods(["GET"])
+def post_list(request):
+    category_id = request.GET.get('category')
 
-        # 각 데이터를 Json 형식으로 변환하여 리스트에 저장 (여러개의 게시글 내용을 담을 거라 리스트를 이용합니다)
-        post_all_json = []
+    if category_id:
+        posts = Post.objects.filter(categories__id=category_id)
+        message = "해당 카테고리 게시글 조회 성공"
+    else:
+        posts = Post.objects.all()
+        message = "게시글 목록 조회 성공"
 
-        for post in post_all:
-            post_json = {
-                "id" : post.id,
-                "title" : post.title,
-                "content" : post.content,
-                "status" : post.status,
-                "writer" : post.writer.username,
-                "created time" : post.created_at,
-                "updated time" : post.updated_at
-            }
-            post_all_json.append(post_json)
+    #입력된 카테고리 게시물 최신순으로 정렬
+    posts = posts.order_by('-created_at')
 
-        return JsonResponse({
-            'status' : 200,
-            'message' : '게시글 목록 조회 성공',
-            'data' : post_all_json
-        })
-    
+    # 각 데이터를 Json 형식으로 변환하여 리스트에 저장 (여러 게시물을 담아야해서 리스트 사용)
+    post_list_json = []
+
+    for post in posts:
+        post_json = {
+            "id": post.id,
+            "title": post.title,
+            "content": post.content,
+            "status" : post.status,
+            "writer" : post.writer.username,
+            #manytomany 관계인 categories
+            "categories": [c.id for c in post.categories.all()],
+            "created_time": post.created_at,
+            "updated_time": post.updated_at
+        }
+        post_list_json.append(post_json)
+
+    return JsonResponse({
+        "status": 200,
+        "message": message,
+        "data": post_list_json
+    })
+
 # 전체 댓글을 Get(Read) 하는 뷰 로직
 @require_http_methods(["GET"])   #함수 데코레이터, 특정 http method 만 허용합니다
 def comment_list(request, post_id):
