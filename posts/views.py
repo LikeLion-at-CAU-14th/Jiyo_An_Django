@@ -143,15 +143,19 @@ def comment_list(request, post_id):
         for comment in comments:
             comment_json = {
                 "post_id" : comment.post.id,
-                "title" : comment.post.title,
-                "content" : comment.post.content,
                 "comment": comment.content
             }
             comment_all_json.append(comment_json)
 
+        post_jason = {
+            "title" : comment.post.title,
+            "content" : comment.post.content
+        }
+
         return JsonResponse({
             'status' : 200,
             'message' : '댓글 목록 조회 성공',
+            'post' : post_jason,
             'data' : comment_all_json
         })
     
