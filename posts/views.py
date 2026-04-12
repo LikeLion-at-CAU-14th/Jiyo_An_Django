@@ -172,3 +172,11 @@ def comment_list(request, post_id):
             'data' : comment_all_json
         })
     
+import logging
+from django.http import HttpResponse
+
+logger = logging.getLogger(__name__)
+
+def test_warning(request):
+    logger.warning("This is a warning test")
+    return HttpResponse("warning test")
