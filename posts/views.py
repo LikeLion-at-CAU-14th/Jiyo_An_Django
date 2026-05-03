@@ -52,6 +52,28 @@ class PostDetail(APIView):
         status=status.HTTP_200_OK
     )
 
+from .models import Comment
+from .serializers import CommentSerializer
+
+class CommentListCreateView(APIView):
+
+    # 댓글 조회
+    def get(self, request, post_id):
+        comments = Comment.objects.filter(post_id=post_id)
+        serializer = CommentSerializer(comments, many=True)
+        return Response(serializer.data)
+
+    # 댓글 생성
+    def post(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+
+        serializer = CommentSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(post=post)  # FK 연결
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 """
 from django.shortcuts import render
 from django.http import JsonResponse

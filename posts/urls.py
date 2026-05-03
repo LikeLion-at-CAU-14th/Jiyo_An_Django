@@ -12,5 +12,6 @@ urlpatterns = [
     #path('<int:post_id>/comments/', comment_list, name = "comment_list"), #Comment 전체조회
     path('', PostList.as_view()), # post 전체 조회
     path('<int:post_id>/', PostDetail.as_view()), # post 개별 조회
+    path('<int:post_id>/comments/', CommentListCreateView.as_view()),
 
 ]
