@@ -21,5 +21,5 @@ from posts.views import *
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('posts/', include('posts.urls')),
-    path('test-warning/', test_warning),
+    #path('test-warning/', test_warning),
 ]
