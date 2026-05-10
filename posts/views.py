@@ -16,8 +16,18 @@ from django.http import Http404
 
 from rest_framework.permissions import IsAuthenticatedOrReadOnly # jwt 세션
 
+#permissions관련
+from .permissions import IsAllowedTime, IsOwnerOrReadOnly
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+
 
 class PostList(APIView):
+
+    permission_classes = [
+        IsAllowedTime,
+        IsAuthenticatedOrReadOnly
+    ]
+    
     def post(self, request, format=None):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
@@ -31,15 +41,17 @@ class PostList(APIView):
         return Response(serializer.data)
 
 class PostDetail(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [ IsAuthenticatedOrReadOnly, IsAllowedTime, IsOwnerOrReadOnly ]
 
     def get(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
         serializer = PostSerializer(post)
         return Response(serializer.data)
 
     def put(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
         serializer = PostSerializer(post, data=request.data)
         if serializer.is_valid(): # update이니까 유효성 검사 필요
             serializer.save()
@@ -48,6 +60,7 @@ class PostDetail(APIView):
 
     def delete(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
         post.delete()
         return Response(
             {
@@ -61,6 +74,11 @@ from .models import Comment
 from .serializers import CommentSerializer
 
 class CommentListCreateView(APIView):
+
+    permission_classes = [
+        IsAllowedTime,
+        IsAuthenticatedOrReadOnly
+    ]
 
     # 댓글 조회
     def get(self, request, post_id):
