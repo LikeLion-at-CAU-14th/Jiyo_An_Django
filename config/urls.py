@@ -17,9 +17,20 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from posts.views import *
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('account/', include('accounts.urls')), # 추가하기
     path('posts/', include('posts.urls')),
-    #path('test-warning/', test_warning),
+
+    # 토큰 관련 url 추가
+    path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+
 ]
