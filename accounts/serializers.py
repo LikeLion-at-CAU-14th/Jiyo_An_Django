@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import *
 
+from rest_framework_simplejwt.tokens import RefreshToken
+
+
 # 로그인용 시리얼라이저
 class AuthSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=True)
@@ -78,3 +81,78 @@ class RegisterSerializer(serializers.ModelSerializer):
         
         return input
 
+class OAuthSerializer(serializers.ModelSerializer):
+    username = serializers.CharField()
+    email = serializers.CharField(required=True)
+
+    class Meta:
+        model = User
+        fields = ['username','email']
+
+    def validate(self, data):
+        username = data.get('username', None)
+        email = data.get('email', None)
+
+        if email is None:
+            raise serializers.ValidationError('Email does not exist.')
+        
+        user = User.get_user_by_email(email=email)
+        
+        # 존재하지 않는 회원이면 새롭게 가입
+        if user is None:
+            user = User.objects.create(username=username, email=email)
+
+        token = RefreshToken.for_user(user)
+        refresh_token = str(token)
+        access_token = str(token.access_token)
+
+        data = {
+            "user": user,
+            "refresh_token": refresh_token,
+            "access_token": access_token,
+        }
+
+        return data
+
+class KakaoOAuthSerializer(serializers.Serializer):
+    kakao_id = serializers.CharField(required=True)
+    nickname = serializers.CharField(required=True)
+
+    def validate(self, data):
+        kakao_id = data.get("kakao_id")
+        nickname = data.get("nickname")
+
+        if kakao_id is None:
+            raise serializers.ValidationError("Kakao id does not exist.")
+
+        if nickname is None:
+            raise serializers.ValidationError("Kakao nickname does not exist.")
+
+        # 이메일을 못 받으므로 username을 kakao_id 기반으로 생성
+        username = f"kakao_{kakao_id}"
+
+        # 이미 가입된 카카오 유저인지 확인
+        user = User.get_user_by_username(username=username)
+
+        # 존재하지 않으면 새 유저 생성
+        if user is None:
+            user = User.objects.create(
+                username=username,
+            )
+
+            # 카카오 로그인 유저는 비밀번호 로그인을 하지 않도록 처리
+            user.set_unusable_password()
+            user.save()
+
+        token = RefreshToken.for_user(user)
+        refresh_token = str(token)
+        access_token = str(token.access_token)
+
+        data = {
+            "user": user,
+            "nickname": nickname,
+            "refresh_token": refresh_token,
+            "access_token": access_token,
+        }
+
+        return data
