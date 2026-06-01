@@ -1,0 +1,18 @@
+[project]
+name = "toyproject"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "jayanjiyo",email = "jay.anjiyo@gmail.com"}
+]
+requires-python = ">=3.12"
+dependencies = [
+    "django (>=6.0.5,<7.0.0)",
+    "djangorestframework (>=3.17.1,<4.0.0)",
+    "django-cors-headers (>=4.9.0,<5.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
