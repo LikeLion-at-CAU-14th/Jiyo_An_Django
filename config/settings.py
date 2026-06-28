@@ -117,8 +117,8 @@ def get_secret(setting, secrets=secrets):
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'likelion14th',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / "db.sqlite3",
         'USER': get_secret("DB_USER"), 
 		'PASSWORD': get_secret("DB_PW"), 
 		'HOST': get_secret("RDS_HOST"),

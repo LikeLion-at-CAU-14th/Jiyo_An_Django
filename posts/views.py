@@ -1,6 +1,8 @@
 ### DRF 관련 import - APIView 사용
 import os
 import uuid
+import json
+import boto3
 
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -9,22 +11,24 @@ from django.views.decorators.http import require_http_methods
 
 from .models import *
 
-import json
 from .serializers import PostSerializer
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from django.http import Http404
-
 from rest_framework.permissions import IsAuthenticatedOrReadOnly # jwt 세션
+from django.http import Http404
 
 #permissions관련
 from .permissions import IsAllowedTime, IsOwnerOrReadOnly
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
+from rest_framework.parsers import MultiPartParser, FormParser
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+
+from django.core.files.storage import default_storage  
+from .serializers import ImageSerializer
+from django.conf import settings
 
 class PostList(APIView):
 
@@ -59,11 +63,31 @@ class PostList(APIView):
 class PostDetail(APIView):
     permission_classes = [ IsAuthenticatedOrReadOnly, IsAllowedTime, IsOwnerOrReadOnly ]
 
+    @swagger_auto_schema(
+        operation_summary="게시글 상세 조회",
+        operation_description="post_id에 해당하는 게시글을 상세 조회합니다.",
+        responses={
+            200: PostSerializer,
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )
+
     def get(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
         self.check_object_permissions(request, post)
-        serializer = PostSerializer(post, many=True)
+        serializer = PostSerializer(post)
         return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_summary="게시글 수정",
+        operation_description="post_id에 해당하는 게시글을 수정합니다.",
+        request_body=PostSerializer,
+        responses={
+            200: PostSerializer,
+            400: "잘못된 요청",
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )    
 
     def put(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
@@ -73,6 +97,15 @@ class PostDetail(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_summary="게시글 삭제",
+        operation_description="post_id에 해당하는 게시글을 삭제합니다.",
+        responses={
+            200: "게시글 삭제 성공",
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )
 
     def delete(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
@@ -96,12 +129,31 @@ class CommentListCreateView(APIView):
         IsAuthenticatedOrReadOnly
     ]
 
+    @swagger_auto_schema(
+        operation_summary="댓글 목록 조회",
+        operation_description="특정 게시글에 달린 댓글 목록을 조회합니다.",
+        responses={
+            200: CommentSerializer(many=True),
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )
+
     # 댓글 조회
     def get(self, request, post_id):
         comments = Comment.objects.filter(post_id=post_id)
         serializer = CommentSerializer(comments, many=True)
         return Response(serializer.data)
 
+    @swagger_auto_schema(
+        operation_summary="댓글 생성",
+        operation_description="특정 게시글에 댓글을 생성합니다.",
+        request_body=CommentSerializer,
+        responses={
+            201: CommentSerializer,
+            400: "잘못된 요청",
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )
     # 댓글 생성
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
@@ -112,10 +164,61 @@ class CommentListCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    from django.core.files.storage import default_storage  
-from .serializers import ImageSerializer
-from django.conf import settings
-import boto3
+
+class ImageUploadView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    @swagger_auto_schema(
+        operation_summary="이미지 업로드",
+        operation_description="이미지 파일을 multipart/form-data 형식으로 받아 S3에 업로드하고, 업로드된 이미지 URL을 DB에 저장합니다.",
+        manual_parameters=[
+            openapi.Parameter(
+                name="image",
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_FILE,
+                required=True,
+                description="업로드할 이미지 파일"
+            ),
+        ],
+        responses={
+            201: ImageSerializer,
+            400: "No image file",
+            500: "S3 Upload Failed"
+        }
+    )
+    def post(self, request):
+        if 'image' not in request.FILES:
+            return Response({"error": "No image file"}, status=status.HTTP_400_BAD_REQUEST)
+
+        image_file = request.FILES['image']
+
+        s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_REGION
+        )
+
+        ext = os.path.splitext(image_file.name)[1]
+        new_file_name = f"{uuid.uuid4().hex}{ext}"
+        file_path = f"uploads/{new_file_name}"
+
+        try:
+            s3_client.put_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=file_path,
+                Body=image_file.read(),
+                ContentType=image_file.content_type,
+            )
+        except Exception as e:
+            return Response({"error": f"S3 Upload Failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        image_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{file_path}"
+
+        image_instance = Image.objects.create(image_url=image_url)
+        serializer = ImageSerializer(image_instance)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 """
 from django.shortcuts import render
 from django.http import JsonResponse
