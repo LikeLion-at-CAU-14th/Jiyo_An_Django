@@ -121,8 +121,8 @@ DATABASES = {
         'NAME': 'likelion14th',
         'USER': get_secret("DB_USER"), 
 		'PASSWORD': get_secret("DB_PW"), 
-		'HOST': get_secret("DB_HOST"),
-		'PORT': get_secret("DB_PORT"),
+		'HOST': get_secret("RDS_HOST"),
+		'PORT': get_secret("RDS_PORT"),
     }
 }
 
