@@ -53,6 +53,13 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",  
+    # "allauth.socialaccount.providers.{제공_업체}" 찾아서 사용 가능
+    'storages',
+    'drf_yasg',
 ]
 
 
@@ -68,6 +75,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "allauth.account.middleware.AccountMiddleware",  
+
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -89,14 +98,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+secret_file = os.path.join(BASE_DIR, 'secrets.json') 
+
+with open(secret_file) as f:
+    secrets = json.loads(f.read())
+
+def get_secret(setting, secrets=secrets): 
+# secret 변수를 가져오거나 그렇지 못 하면 예외를 반환
+    try:
+        return secrets[setting]
+    except KeyError:
+        error_msg = "Set the {} environment variable".format(setting)
+        raise ImproperlyConfigured(error_msg)
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+# 비밀번호/포트번호 등의 변수는 secrets.json에 저장한 후 get_secret로 불러오기
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / "db.sqlite3",
+        'USER': get_secret("DB_USER"), 
+		'PASSWORD': get_secret("DB_PW"), 
+		'HOST': get_secret("RDS_HOST"),
+		'PORT': get_secret("RDS_PORT"),
     }
 }
 
@@ -137,18 +163,6 @@ USE_TZ = False
 
 STATIC_URL = 'static/'
 
-secret_file = os.path.join(BASE_DIR, 'secrets.json') 
-
-with open(secret_file) as f:
-    secrets = json.loads(f.read())
-
-def get_secret(setting, secrets=secrets): 
-# secret 변수를 가져오거나 그렇지 못 하면 예외를 반환
-    try:
-        return secrets[setting]
-    except KeyError:
-        error_msg = "Set the {} environment variable".format(setting)
-        raise ImproperlyConfigured(error_msg)
 
 SECRET_KEY = get_secret("SECRET_KEY")
 
@@ -214,4 +228,33 @@ SIMPLE_JWT = { # JWT 세부내용 설정
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': False,
     'TOKEN_USER_CLASS': 'accounts.User',
+}
+
+ACCOUNT_LOGIN_METHODS = {'email'}                  # 로그인 방식 설정
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*']    # 회원가입 시 필수 입력 필드 설정 
+
+### AWS ###
+# IAM 사용자 관련 정보
+# accessKeys.csv 파일에 있는 내용을 입력 해주세요
+AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = "ap-northeast-2" # 서울 리전
+
+### S3 ###
+AWS_STORAGE_BUCKET_NAME = "likelion14thfors3"
+AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com"
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+# drf-yasg (Swagger) 설정: Swagger UI에서 Bearer 토큰으로 인증 가능하도록 함
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
 }
