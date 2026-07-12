@@ -34,6 +34,8 @@ from config.custom_exceptions import PostNotFoundException # 추가 - 커스텀 
 
 class PostList(APIView):
 
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     """permission_classes = [
         IsAllowedTime,
         IsAuthenticatedOrReadOnly
@@ -47,7 +49,7 @@ class PostList(APIView):
     def post(self, request, format=None):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):  # 유효성 검사 실패 시 예외 발생
-            serializer.save()
+            serializer.save(writer=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         #return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -211,8 +213,8 @@ class CommentListCreateView(APIView):
         post = get_object_or_404(Post, id=post_id)
 
         serializer = CommentSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(post=post)  # FK 연결
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(post=post, writer=request.user)  # FK 및 작성자 연결
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
