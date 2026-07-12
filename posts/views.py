@@ -29,8 +29,10 @@ from drf_yasg import openapi
 from django.core.files.storage import default_storage  
 from .serializers import ImageSerializer
 from django.conf import settings
+from django.utils import timezone
 
 from config.custom_exceptions import PostNotFoundException # 추가 - 커스텀 예외처리 실습용
+from .exceptions import DailyPostLimitException
 
 class PostList(APIView):
 
@@ -49,6 +51,15 @@ class PostList(APIView):
     def post(self, request, format=None):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):  # 유효성 검사 실패 시 예외 발생
+            now = timezone.now()
+            today = timezone.localtime(now).date() if timezone.is_aware(now) else now.date()
+
+            if Post.objects.filter(
+                writer=request.user,
+                created_at__date=today,
+            ).exists():
+                raise DailyPostLimitException()
+
             serializer.save(writer=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         #return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
