@@ -30,12 +30,14 @@ from django.core.files.storage import default_storage
 from .serializers import ImageSerializer
 from django.conf import settings
 
+from config.custom_exceptions import PostNotFoundException # 추가 - 커스텀 예외처리 실습용
+
 class PostList(APIView):
 
-    permission_classes = [
+    """permission_classes = [
         IsAllowedTime,
         IsAuthenticatedOrReadOnly
-    ]
+    ]"""
     @swagger_auto_schema(
             operation_summary="게시글 생성",
             operation_description="새로운 게시글을 생성합니다.",
@@ -44,10 +46,10 @@ class PostList(APIView):
     )
     def post(self, request, format=None):
         serializer = PostSerializer(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(raise_exception=True):  # 유효성 검사 실패 시 예외 발생
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        #return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @swagger_auto_schema(
         operation_summary="게시글 목록 조회",
@@ -59,6 +61,55 @@ class PostList(APIView):
         posts = Post.objects.all()
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
+
+    
+
+    def get(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
+        serializer = PostSerializer(post)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_summary="게시글 수정",
+        operation_description="post_id에 해당하는 게시글을 수정합니다.",
+        request_body=PostSerializer,
+        responses={
+            200: PostSerializer,
+            400: "잘못된 요청",
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )    
+
+    def put(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
+        serializer = PostSerializer(post, data=request.data)
+        if serializer.is_valid(): # update이니까 유효성 검사 필요
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_summary="게시글 삭제",
+        operation_description="post_id에 해당하는 게시글을 삭제합니다.",
+        responses={
+            200: "게시글 삭제 성공",
+            404: "게시글을 찾을 수 없습니다."
+        }
+    )
+
+    def delete(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(request, post)
+        post.delete()
+        return Response(
+            {
+                "message": "게시글이 성공적으로 삭제되었습니다.",
+                "post_id": post_id
+            },
+        status=status.HTTP_200_OK
+    )
 
 class PostDetail(APIView):
     permission_classes = [ IsAuthenticatedOrReadOnly, IsAllowedTime, IsOwnerOrReadOnly ]
@@ -118,6 +169,7 @@ class PostDetail(APIView):
             },
         status=status.HTTP_200_OK
     )
+
 
 from .models import Comment
 from .serializers import CommentSerializer
@@ -219,6 +271,23 @@ class ImageUploadView(APIView):
         serializer = ImageSerializer(image_instance)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+@require_http_methods(["GET"])
+def get_post_detail(reqeust, id):
+    try:
+        post = Post.objects.get(id=id)
+        post_detail_json = {
+            "id" : post.id,
+            "title" : post.title,
+            "content" : post.content,
+            "status" : post.status,
+            "user" : post.user.username
+        }
+        return JsonResponse({
+            "status" : 200,
+            "data": post_detail_json})
+    except Post.DoesNotExist:
+        raise PostNotFoundException
 """
 from django.shortcuts import render
 from django.http import JsonResponse
